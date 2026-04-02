@@ -123,11 +123,46 @@ permute_data <- function(data, nperm) {
     rownames(fake_C) <- rownames(data[[3]])
     
     permed_data <- list(fake_A, fake_B, fake_C)
-    permed_corr_mats[[n]] <- lapply(permed_data, function(mat) cor(t(mat)))
+    permed_corr_mats[[n]] <- lapply(permed_data, safe_cor)
   }
   return(permed_corr_mats)
 } # returns a list of three correlation matrices
 
+
+safe_cor <- function(mat) {
+  keep <- apply(mat, 1, function(x) sd(x, na.rm = TRUE) > 0)
+  if (sum(keep) < 2) return(NULL)
+  cor(t(mat[keep, , drop = FALSE]))
+}
+
+# -------------------------------------
+# Generalized Initialization Procedure 
+# -------------------------------------
+
+initialize_A <- function(score_fn, pval_fn, taxa, K = 10, M = 20) {
+  
+  scores         <- sapply(taxa, score_fn)
+  top_candidates <- names(sort(scores, decreasing = TRUE))[1:min(M, length(taxa))]
+  
+  best_A     <- NULL
+  best_score <- Inf
+  
+  for (start in top_candidates) {
+    
+    pvals       <- pval_fn(start)
+    A_candidate <- names(sort(pvals))[1:min(K, length(pvals))]
+    
+    cand_pvals  <- pval_fn(A_candidate)
+    score       <- mean(sort(cand_pvals)[1:min(K, length(cand_pvals))])
+    
+    if (score < best_score) {
+      best_score <- score
+      best_A     <- A_candidate
+    }
+  }
+  
+  return(best_A)
+}
 
 
 
@@ -152,8 +187,5 @@ vineyard_data_to_matrix <- function(data) { #input list of data (object from spl
   
   return(clean_mats)
 }
-
-
-
 
 

@@ -2,6 +2,7 @@
 # ------------------------------------------------------ #
 # ------------------- Testing Function ----------------- #
 # ------------------------------------------------------ #
+
 source("helpers.R")
 library(tidyverse)
 
@@ -10,7 +11,7 @@ A_star_search <- function(data,
                           method  = c("kw", "permute"),
                           alpha   = 0.05,
                           n_perm  = 1000,
-                          K       = 10,
+                          K       = 5,
                           M       = 20) {
   
   method <- match.arg(method)
@@ -28,7 +29,7 @@ A_star_search <- function(data,
       var(means)
     }
     
-    pval_fn <- function(A) compute_kw_pvals(uvw, A, taxa, n1, n2, n3)
+    pval_fn <- function(A) compute_kw_pvalues(data, uvw, A, taxa)
     
     if (length(A0) == 0) {
       A <- initialize_A(score_fn, pval_fn, taxa, K = K, M = M)
@@ -39,8 +40,13 @@ A_star_search <- function(data,
   
   if (method == "permute") {
     
-    corr_matrices        <- lapply(data, function(mat) cor(t(mat)))
-    taxa                 <- rownames(corr_matrices[[1]])
+    # use safe_cor to avoid zero SD errors on both observed and permuted matrices
+    corr_matrices <- lapply(data, safe_cor)
+    
+    # taxa = intersection of what survived safe_cor across all groups
+    taxa <- Reduce(intersect, lapply(corr_matrices, rownames))
+    corr_matrices <- lapply(corr_matrices, function(m) m[taxa, taxa])
+    
     permed_corr_matrices <- permute_data(data, n_perm)
     
     score_fn <- function(j) {
@@ -165,37 +171,3 @@ compute_permuted_pvalues <- function(corr_matrices, permed_corr_mats_list, A, ta
   names(p_values) <- taxa
   return(p_values)
 }
-
-# --------------------------------------------------------- #
-# ----------- Generalized Initialization Procedure -------- #
-# --------------------------------------------------------- #
-
-# score_fn : taxa -> numeric scalar  (higher = more promising start)
-# pval_fn  : A    -> named p-value vector
-initialize_A <- function(score_fn, pval_fn, taxa, K = 10, M = 20) {
-  
-  scores        <- sapply(taxa, score_fn)
-  top_candidates <- names(sort(scores, decreasing = TRUE))[1:min(M, length(taxa))]
-  
-  best_A     <- NULL
-  best_score <- Inf
-  
-  for (start in top_candidates) {
-    
-    pvals       <- pval_fn(start)
-    A_candidate <- names(sort(pvals))[1:min(K, length(pvals))]
-    
-    cand_pvals  <- pval_fn(A_candidate)
-    score       <- mean(sort(cand_pvals)[1:min(K, length(cand_pvals))])
-    
-    if (score < best_score) {
-      best_score <- score
-      best_A     <- A_candidate
-    }
-  }
-  
-  return(best_A)
-}
-
-
-

@@ -130,11 +130,7 @@ compute_kw_pvalues <- function(data, uvw, A, taxa) {
 # --------------- p-vals from permuation -------------- #
 # ----------------------------------------------------- #
 
-compute_permuted_pvalues <- function(corr_matrices,
-                                   permed_corr_mats_list,
-                                   A,
-                                   taxa,
-                                   n_perm) {
+compute_permuted_pvalues <- function(corr_matrices, permed_corr_mats_list, A, taxa, n_perm) {
   
   delta_values <- numeric(length(taxa))
   names(delta_values) <- taxa
@@ -151,13 +147,19 @@ compute_permuted_pvalues <- function(corr_matrices,
   rownames(delta_perm) <- taxa
   
   for (perm in seq_len(n_perm)) {
-    delta_perm[, perm] <- sapply(taxa, function(j) {
-      compute_delta(permed_corr_mats_list[[perm]], j, A)
+    perm_mats <- permed_corr_mats_list[[perm]]
+    
+    # skip permutations where any group lost taxa due to zero SD
+    available_taxa <- Reduce(intersect, lapply(perm_mats, rownames))
+    
+    delta_perm[available_taxa, perm] <- sapply(available_taxa, function(j) {
+      compute_delta(perm_mats, j, A)
     })
   }
   
+  # NA columns (bad permutations) are ignored by mean()
   p_values <- sapply(seq_along(delta_values), function(i) {
-    mean(delta_perm[i, ] >= delta_values[i])
+    mean(delta_perm[i, ] >= delta_values[i], na.rm = TRUE)
   })
   
   names(p_values) <- taxa

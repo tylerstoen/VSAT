@@ -1,4 +1,3 @@
-
 # ------------------------------------------------------ #
 # ------------------- Testing Function ----------------- #
 # ------------------------------------------------------ #
@@ -6,13 +5,13 @@
 source("helpers.R")
 library(tidyverse)
 
-A_star_search <- function(data,
-                          A0      = character(0),
-                          method  = c("kw", "permute"),
-                          alpha   = 0.05,
-                          n_perm  = 1000,
-                          K       = 5,
-                          M       = 20) {
+VSAT <- function(data,
+                 A0      = character(0),
+                 method  = c("kw", "permute"),
+                 alpha   = 0.05,
+                 n_perm  = 1000,
+                 K       = 5,
+                 M       = 20) {
   
   method <- match.arg(method)
   reps   <- 0
@@ -40,14 +39,18 @@ A_star_search <- function(data,
   
   if (method == "permute") {
     
-    # use safe_cor to avoid zero SD errors on both observed and permuted matrices
+    # Observed correlation matrices
     corr_matrices <- lapply(data, safe_cor)
-    
-    # taxa = intersection of what survived safe_cor across all groups
-    taxa <- Reduce(intersect, lapply(corr_matrices, rownames))
+    taxa          <- Reduce(intersect, lapply(corr_matrices, rownames))
     corr_matrices <- lapply(corr_matrices, function(m) m[taxa, taxa])
     
-    permed_corr_matrices <- permute_data(data, n_perm)
+    # --- KEY CHANGE ---
+    # Store only column-group assignments (tiny) instead of 600 pre-computed
+    # correlation matrices (≈1.2 GB at p = 500).  .compute_pvals_lean()
+    # rebuilds the three group matrices on the fly for each permutation.
+    all_cols       <- do.call(cbind, data)
+    grp_labels     <- rep(seq_along(data), sapply(data, ncol))
+    perm_assignments <- replicate(n_perm, sample(grp_labels), simplify = FALSE)
     
     score_fn <- function(j) {
       means <- sapply(corr_matrices, function(mat) {
@@ -57,12 +60,13 @@ A_star_search <- function(data,
     }
     
     pval_fn <- function(A) {
-      compute_permuted_pvalues(corr_matrices, permed_corr_matrices, A, taxa, n_perm)
+      .compute_pvals_lean(corr_matrices, all_cols, perm_assignments,
+                          A, taxa, n_perm)
     }
     
     if (length(A0) == 0) {
       scores <- sapply(taxa, score_fn)
-      A <- names(sort(scores, decreasing = TRUE))[1:min(K, length(taxa))]
+      A      <- names(sort(scores, decreasing = TRUE))[1:min(K, length(taxa))]
     } else {
       A <- A0
     }
@@ -130,44 +134,4 @@ compute_kw_pvalues <- function(data, uvw, A, taxa) {
   }
   
   return(pvals)
-}
-
-# ----------------------------------------------------- #
-# --------------- p-vals from permuation -------------- #
-# ----------------------------------------------------- #
-
-compute_permuted_pvalues <- function(corr_matrices, permed_corr_mats_list, A, taxa, n_perm) {
-  
-  delta_values <- numeric(length(taxa))
-  names(delta_values) <- taxa
-  
-  for (tax in taxa) {
-    if (tax %in% A) {
-      delta_values[tax] <- compute_delta(corr_matrices, tax, setdiff(A, tax))
-    } else {
-      delta_values[tax] <- compute_delta(corr_matrices, tax, A)
-    }
-  }
-  
-  delta_perm <- matrix(NA, nrow = length(taxa), ncol = n_perm)
-  rownames(delta_perm) <- taxa
-  
-  for (perm in seq_len(n_perm)) {
-    perm_mats <- permed_corr_mats_list[[perm]]
-    
-    # skip permutations where any group lost taxa due to zero SD
-    available_taxa <- Reduce(intersect, lapply(perm_mats, rownames))
-    
-    delta_perm[available_taxa, perm] <- sapply(available_taxa, function(j) {
-      compute_delta(perm_mats, j, A)
-    })
-  }
-  
-  # NA columns (bad permutations) are ignored by mean()
-  p_values <- sapply(seq_along(delta_values), function(i) {
-    mean(delta_perm[i, ] >= delta_values[i], na.rm = TRUE)
-  })
-  
-  names(p_values) <- taxa
-  return(p_values)
 }

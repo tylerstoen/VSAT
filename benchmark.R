@@ -20,6 +20,10 @@ results_p <- bench::press(
   }
 )
 
+saveRDS(results_p, "eval_results/item_time_benchmark.RDS")
+
+results_p <- readRDS("eval_results/item_time_benchmark.RDS")
+
 # -------------------------------------------------------
 # Benchmark: vary number of samples (n)
 # -------------------------------------------------------
@@ -39,6 +43,10 @@ results_n <- bench::press(
   }
 )
 
+saveRDS(results_n, "eval_results/sample_time_benchmark.RDS")
+
+results_n <- readRDS("eval_results/sample_time_benchmark.RDS")
+
 # -------------------------------------------------------
 # Benchmark: vary number of permutations (permute method only)
 # -------------------------------------------------------
@@ -56,6 +64,8 @@ results_perm <- bench::press(
     )
   }
 )
+
+saveRDS(results_perm, "eval_results/num_perm_benchmark.RDS")
 
 # -------------------------------------------------------
 # Plots
@@ -76,7 +86,7 @@ results_p |>
   vsat_colors +
   labs(
     title    = "Runtime by Number of Items",
-    subtitle = "n = 36, ρ₁ = 0.8, ρ₂ = ρ₃ = 0, n_perm = 200",
+    subtitle = expression("n = 36, " ~ rho[1] ~ " = 0.8, n_perm = 200"),
     x        = "Number of Items (p)",
     y        = "Median Runtime (seconds)",
     color    = "Method"
@@ -98,7 +108,7 @@ results_n |>
   vsat_colors +
   labs(
     title    = "Runtime by Sample Size",
-    subtitle = "p = 100, ρ₁ = 0.8, ρ₂ = ρ₃ = 0, n_perm = 200",
+    subtitle = "p = 100," ~ rho[1] ~ "= 0.8, n_perm = 200",
     x        = "Samples per Group (n)",
     y        = "Median Runtime (seconds)",
     color    = "Method"

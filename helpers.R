@@ -169,23 +169,31 @@ compute_permuted_pvalues <- function(corr_matrices, permed_corr_mats_list,
 .compute_pvals_lean <- function(corr_matrices, all_cols, perm_assignments,
                                 A, taxa, n_perm) {
   
-  delta_obs  <- .deltas_fast(corr_matrices, taxa, A)
-  delta_perm <- matrix(NA_real_, nrow = length(taxa), ncol = n_perm,
-                       dimnames = list(taxa, NULL))
+  delta_obs    <- .deltas_fast(corr_matrices, taxa, A)
+  exceed_count <- setNames(integer(length(taxa)), taxa)
+  valid_count  <- setNames(integer(length(taxa)), taxa)
   
   for (perm in seq_len(n_perm)) {
     grp <- perm_assignments[[perm]]
     pm  <- lapply(sort(unique(grp)),
                   function(g) safe_cor(all_cols[, grp == g, drop = FALSE]))
+    
     if (any(sapply(pm, is.null))) next
     avail <- Reduce(intersect, lapply(pm, rownames))
     ct    <- intersect(taxa, avail)
     if (length(ct) < 2) next
-    pm_sub           <- lapply(pm, function(m) m[ct, ct, drop = FALSE])
-    delta_perm[ct, perm] <- .deltas_fast(pm_sub, ct, A)
+    
+    pm_sub <- lapply(pm, function(m) m[ct, ct, drop = FALSE])
+    d_perm <- .deltas_fast(pm_sub, ct, A)
+    
+    idx               <- match(ct, taxa)
+    exceed_count[idx] <- exceed_count[idx] + (d_perm >= delta_obs[idx])
+    valid_count[idx]  <- valid_count[idx] + 1L
+    
+    rm(pm, pm_sub)
   }
   
-  p_vals <- rowMeans(sweep(delta_perm, 1, delta_obs, ">="), na.rm = TRUE)
+  p_vals <- exceed_count / pmax(valid_count, 1L)
   names(p_vals) <- taxa
   p_vals
 }

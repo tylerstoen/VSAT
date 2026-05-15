@@ -23,7 +23,7 @@ scenario_2 <- crossing(
   n        = 36,
   set_size = 10,
   rho_1    = c(0.9, 0.8, 0.7, 0.6, 0.5),   # strongest signal
-  rho_2    = NA,                              # placeholder
+  rho_2    = NA,                            
   rho_3    = NA,
   method   = c("kw", "permute"),
   rep      = 1:50
@@ -91,13 +91,13 @@ scenario_null <- crossing(
   p        = 100,
   n        = 36,
   set_size = 10,
-  rho_1    = seq(0, 0.9, by = 0.1),  # same as DCM x-axis
-  rho_2    = seq(0, 0.9, by = 0.1),  # all equal - non-differential
+  rho_1    = seq(0, 0.9, by = 0.1),
+  rho_2    = seq(0, 0.9, by = 0.1),
   rho_3    = seq(0, 0.9, by = 0.1),
   method   = c("kw", "permute"),
   rep      = 1:25
 ) |>
-  filter(rho_1 == rho_2 & rho_2 == rho_3)  # keep only equal rho rows
+  filter(rho_1 == rho_2 & rho_2 == rho_3)  # keep rows where rhos are equal
 
 
 
@@ -112,7 +112,7 @@ evaluate_vsat <- function(p, n, set_size, rho_1, rho_2, rho_3,
   data <- treatment_data_generation_3d(
     rows       = p,
     cols       = n,
-    A_cov      = rho_1,   # explicit mapping here
+    A_cov      = rho_1, 
     B_cov      = rho_2,
     C_cov      = rho_3,
     test_group = 1:set_size
@@ -147,7 +147,6 @@ run_scenario <- function(scenario_grid, filename) {
   results <- future_pmap(scenario_grid, function(...) {
     args <- list(...)
     
-    # drop columns that aren't function arguments
     vsat_args <- args[c("p", "n", "set_size", "rho_1", "rho_2", "rho_3", "method")]
     vsat_args$seed <- args$rep
     
@@ -205,7 +204,6 @@ make_summary <- function(results, group_var) {
     )
 }
 
-# shared plot theme
 vsat_theme <- function() {
   theme_bw(base_size = 12) +
     theme(
@@ -216,13 +214,11 @@ vsat_theme <- function() {
     )
 }
 
-# shared color scale
 vsat_colors <- scale_color_manual(values = c(
   "Kruskal-Wallis" = "#F8766D",
   "Permutation"    = "#619CFF"
 ))
 
-# shared FDR reference line — only appears in FDR panel
 fdr_line <- geom_hline(
   data      = data.frame(metric = factor("False Discovery Rate",
                                          levels = c("True Positive Rate",
@@ -241,11 +237,17 @@ fdr_line <- geom_hline(
 
 make_summary <- function(results, group_var) {
   results |>
+    mutate(
+      empty     = returned_size < 2,
+      recall    = if_else(returned_size < 2, 0,         recall),
+      precision = if_else(returned_size < 2, NA_real_,  precision),
+      f1        = if_else(returned_size < 2, 0,         f1)
+    ) |>
     group_by({{ group_var }}, method) |>
     summarise(
-      mean_recall    = mean(recall, na.rm = TRUE),
+      mean_recall    = mean(recall,    na.rm = TRUE),
       mean_precision = mean(precision, na.rm = TRUE),
-      mean_f1        = mean(f1, na.rm = TRUE),
+      mean_f1        = mean(f1,        na.rm = TRUE),
       empty_rate     = mean(empty),
       .groups        = "drop"
     ) |>
@@ -292,7 +294,7 @@ vsat_colors <- scale_color_manual(values = c(
 # Single Signal
 # -------------------------------------------------------
 
-summary_long_s1 <- make_summary(readRDS("results_single_signal.rds"), rho_1)
+summary_long_s1 <- make_summary(readRDS("eval_results/results_single_signal.rds"), rho_1)
 
 ggplot(summary_long_s1, aes(x = rho_1, y = value, color = method, group = method)) +
   geom_line(linewidth = 0.9) +
@@ -315,7 +317,7 @@ ggplot(summary_long_s1, aes(x = rho_1, y = value, color = method, group = method
 # Signal Gradient (proportional)
 # -------------------------------------------------------
 
-summary_long_s2 <- make_summary(readRDS("results_gradient_signal.rds"), rho_1)
+summary_long_s2 <- make_summary(readRDS("eval_results/results_gradient_signal.rds"), rho_1)
 
 ggplot(summary_long_s2, aes(x = rho_1, y = value, color = method, group = method)) +
   geom_line(linewidth = 0.9) +
@@ -343,7 +345,7 @@ ggplot(summary_long_s2, aes(x = rho_1, y = value, color = method, group = method
 # Signal Gradient (constant background)
 # -------------------------------------------------------
 
-summary_long_s3 <- make_summary(readRDS("results_gradient.rds"), rho_1)
+summary_long_s3 <- make_summary(readRDS("eval_results/results_gradient.rds"), rho_1)
 
 ggplot(summary_long_s3, aes(x = rho_1, y = value, color = method, group = method)) +
   geom_line(linewidth = 0.9) +
@@ -351,8 +353,7 @@ ggplot(summary_long_s3, aes(x = rho_1, y = value, color = method, group = method
   facet_wrap(~ metric, ncol = 2) +
   vsat_colors +
   scale_x_continuous(
-    breaks = unique(summary_long_s3$rho_1),
-    labels = function(x) parse(text = paste0("rho[1]==", x))
+    breaks = unique(summary_long_s3$rho_1)
   ) +
   scale_y_continuous(limits = c(0, 1)) +
   labs(
@@ -363,14 +364,13 @@ ggplot(summary_long_s3, aes(x = rho_1, y = value, color = method, group = method
     y        = NULL,
     color    = "Method"
   ) +
-  vsat_theme() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  vsat_theme()
 
 # -------------------------------------------------------
 # Item Population Size
 # -------------------------------------------------------
 
-summary_long_s4 <- make_summary(readRDS("results_pop_size.rds"), p)
+summary_long_s4 <- make_summary(readRDS("eval_results/results_pop_size.rds"), p)
 
 ggplot(summary_long_s4, aes(x = p, y = value, color = method, group = method)) +
   geom_line(linewidth = 0.9) +
@@ -387,14 +387,13 @@ ggplot(summary_long_s4, aes(x = p, y = value, color = method, group = method)) +
     y        = NULL,
     color    = "Method"
   ) +
-  vsat_theme() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  vsat_theme()
 
 # -------------------------------------------------------
 # Sample Size
 # -------------------------------------------------------
 
-summary_long_s5 <- make_summary(readRDS("results_sample_size.rds"), n)
+summary_long_s5 <- make_summary(readRDS("eval_results/results_sample_size.rds"), n)
 
 ggplot(summary_long_s5, aes(x = n, y = value, color = method, group = method)) +
   geom_line(linewidth = 0.9) +
@@ -411,43 +410,44 @@ ggplot(summary_long_s5, aes(x = n, y = value, color = method, group = method)) +
     y        = NULL,
     color    = "Method"
   ) +
-  vsat_theme() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  vsat_theme()
 
 # -------------------------------------------------------
 # Null Simulation - FDR Control
 # -------------------------------------------------------
 
-results_null <- readRDS("results_null.rds")
+results_null <- readRDS("eval_results/results_null.rds")
 
 summary_null <- results_null |>
   group_by(rho_1, method) |>
   summarise(
-    mean_false_discoveries = mean(returned_size, na.rm = TRUE),
-    .groups = "drop"
+    fdr_rate = mean(returned_size >= 2),
+    .groups  = "drop"
   ) |>
-  mutate(method = case_when(
-    method == "kw"      ~ "Kruskal-Wallis",
-    method == "permute" ~ "Permutation"
-  ))
+  mutate(
+    method = case_when(
+      method == "kw"      ~ "Kruskal-Wallis",
+      method == "permute" ~ "Permutation"
+    )
+  )
 
-ggplot(summary_null, aes(x = rho_1, y = mean_false_discoveries,
+ggplot(summary_null, aes(x = rho_1, y = fdr_rate,
                          color = method, group = method)) +
   geom_line(linewidth = 0.9) +
   geom_point(size = 2.5) +
-  geom_hline(yintercept = 0, linetype = "dashed",
+  geom_hline(yintercept = 0.05, linetype = "dashed",
              color = "black", linewidth = 0.5) +
   vsat_colors +
   scale_x_continuous(
     breaks = seq(0, 0.9, by = 0.1),
     labels = seq(0, 0.9, by = 0.1)
   ) +
-  scale_y_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, 1)) +
   labs(
-    title    = "False Discovery Counts Under Non-Differential Correlation",
+    title    = "False Discovery Rate Under Non-Differential Correlation",
     subtitle = "p = 100, n = 36, set size = 10",
-    y        = "Mean size of incorrect set",
-    x        = "Background Correlation Strength",
+    x        = "Background Correlation Strength (\u03c1)",
+    y        = "Proportion of Runs With Incorrect Set",
     color    = "Method"
   ) +
   vsat_theme()

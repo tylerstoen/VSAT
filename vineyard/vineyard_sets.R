@@ -1,10 +1,6 @@
 library(tidyverse)
 library(MASS)
 
-source(helpers.R)
-source(main.R)
-source(testing.R)
-
 class_dat <- read.csv(here::here("vineyard/rarified_counts_by_Class.csv"))
 
 class_dat <- class_dat %>% 

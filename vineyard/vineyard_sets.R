@@ -171,9 +171,11 @@ saveRDS(results_cc, "capstone_mods_to_VSAT.rds")
 
 library(gt)
 
+
+
 targets <- c("caldilineae", "sphingobacteriia")
 
-cor_mats <- lapply(fertilizer_data, safe_cor)
+cor_mats <- lapply(fert_matrices_clean, safe_cor)
 names(cor_mats) <- c("NF", "OF", "SF")
 
 sapply(cor_mats, function(mat) mat["caldilineae", "sphingobacteriia"]) |>

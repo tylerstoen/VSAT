@@ -119,5 +119,51 @@ plot_contributions <- function(data,
   return(p)
 }
 
+# -----------
+# ANOVA plot
+# -----------
+
+get_contributions <- function(data, A0 = character(0)) {
+  
+  A <- A0
+  taxa <- rownames(data[[1]])
+  
+  uvw_vals <- lapply(data, function(mat) t(scale(t(mat))))
+  
+  out <- list()
+  
+  for (j in taxa) {
+    m <- compute_m_vecs(uvw_vals, A, j)
+    u_contributions <- uvw_vals[[1]][j, ] * m$m1
+    v_contributions <- uvw_vals[[2]][j, ] * m$m2
+    w_contributions <- uvw_vals[[3]][j, ] * m$m3
+    
+    n1 <- length(u_contributions)
+    n2 <- length(v_contributions)
+    n3 <- length(w_contributions)
+    
+    out[[j]] <- tibble(
+      Taxa = j,
+      Treatment = rep(c("T1","T2","T3"), times = c(n1, n2, n3)),
+      Value = c(u_contributions, v_contributions, w_contributions)
+    )
+  }
+  bind_rows(out)
+}
+
+
+contributions <- get_contributions(treatment_data_generation_3d(100,20,0.8,0,0,c(1:10)), 
+                                   c("V1","V2","V3","V4","V5","V6", "V7", "V8", "V9", "V10"))
+
+subset_taxa <- c("V1", "V20")
+
+contributions |>
+  filter(Taxa %in% subset_taxa) |>
+  ggplot(aes(Treatment, Value, color = Treatment)) +
+  geom_jitter(width = 0.15, height = 0, size = 1.8, alpha = 0.8) +
+  labs(y="Contribution",
+       title="Contribution breakdown of the Correlation between Two Items") +
+  facet_wrap(~Taxa) +
+  theme_bw()
 
 

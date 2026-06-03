@@ -17,7 +17,7 @@ treatment_data_generation_3d <- function(rows, cols, A_cov, B_cov, C_cov, test_g
   
   lapply(c(A_cov, B_cov, C_cov), function(cov_val) {
     samples <- t(mvrnorm(cols, rep(0, rows), make_sigma(cov_val)))
-    data.frame(samples, row.names = paste0("Item", 1:rows))
+    data.frame(samples, row.names = paste0("V", 1:rows))
   })
 }
 
